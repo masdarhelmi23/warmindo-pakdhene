@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB; // Penting untuk count distinct
+use Illuminate\Support\Facades\DB; 
 
 class ReportController extends Controller
 {
@@ -13,20 +13,19 @@ class ReportController extends Controller
     {
         $date = $request->get('date', Carbon::today()->toDateString());
 
-        // 1. Pendapatan Harian (Hanya yang Lunas)
+        // 1. Pendapatan Harian (REVISI: Sesuaikan status ke 'done' sesuai database)
         $totalIncome = Order::whereDate('created_at', $date)
-                            ->where('status', 'lunas')
+                            ->where('status', 'done')
                             ->sum('total_price');
 
-        // 2. Jumlah Transaksi Unik (Dihitung per invoice/meja dalam waktu yang sama)
-        // Kita hitung berdasarkan 'created_at' yang unik per meja
+        // 2. Jumlah Transaksi Unik (Dihitung per order_group_id agar lebih akurat)
         $totalTransactions = Order::whereDate('created_at', $date)
-                                  ->distinct()
-                                  ->count(DB::raw('CONCAT(table_number, "-", created_at)'));
+                                  ->distinct('order_group_id')
+                                  ->count('order_group_id');
 
-        // 3. Pesanan Belum Jadi (Status Pending/Cooking)
+        // 3. Pesanan Belum Jadi (REVISI: Sesuaikan ke status 'pending' dan 'waiting')
         $pendingOrders = Order::whereDate('created_at', $date)
-                              ->whereIn('status', ['pending', 'cooking'])
+                              ->whereIn('status', ['pending', 'waiting'])
                               ->count();
 
         // 4. Item/Porsi Terjual

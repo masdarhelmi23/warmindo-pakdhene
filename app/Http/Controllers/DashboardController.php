@@ -4,25 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Table;
-use Illuminate\Http\Request;
 use App\Models\Order;
+use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        // 1. Hitung Total Produk & Meja
         $totalProducts = Product::count();
         $totalTables = Table::count();
 
-        // 2. Hitung Pendapatan Real Hari Ini
-        // Menjumlahkan kolom total_price dari tabel orders yang statusnya 'done' hari ini
+        // Menghitung pendapatan hari ini dari pesanan yang sudah 'done'
         $incomeToday = Order::whereDate('created_at', Carbon::today())
                             ->where('status', 'done')
                             ->sum('total_price');
 
-        // 3. (Opsional) Hitung Growth jika dibanding kemarin
         $incomeYesterday = Order::whereDate('created_at', Carbon::yesterday())
                                 ->where('status', 'done')
                                 ->sum('total_price');
@@ -32,26 +31,60 @@ class DashboardController extends Controller
             $growth = (($incomeToday - $incomeYesterday) / $incomeYesterday) * 100;
         }
 
+        $recentOrders = Order::orderBy('created_at', 'desc')->take(5)->get();
+
         return view('admin.dashboard', compact(
             'totalProducts', 
             'totalTables', 
             'incomeToday', 
-            'growth'
+            'growth',
+            'recentOrders'
         ));
     }
 
+    /**
+     * Memproses pesanan dari pelanggan
+     */
     public function processOrder(Request $request)
-    {
-        // Simpan ke tabel orders
-        // Otomatis memicu fungsi potong stok yang kita buat kemarin di Model Order
-        $order = \App\Models\Order::create([
-            'table_number' => $request->table_number,
-            'product_name' => $request->product_name,
-            'quantity'     => $request->quantity,
-            'total_price'  => $request->total_price,
-            'status'       => 'pending' // Masuk ke antrean dapur
-        ]);
+{
+    // REVISI: Pastikan mencari 'table_number'
+    $validator = Validator::make($request->all(), [
+        'table_number'  => 'required', 
+        'customer_name' => 'required|string|max:255',
+        'items'         => 'required|array|min:1',
+    ]);
 
-        return response()->json(['success' => true]);
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Data tidak lengkap: ' . implode(', ', $validator->errors()->all())
+        ], 422);
     }
+
+    DB::beginTransaction();
+    try {
+        $groupId = 'ORD-' . time() . '-' . rand(100, 999);
+        $items = $request->input('items');
+        $customerName = $request->input('customer_name');
+        $tableNumber = $request->input('table_number'); 
+
+        foreach ($items as $item) {
+            Order::create([
+                'table_number'   => $tableNumber,
+                'customer_name'  => $customerName, 
+                'order_group_id' => $groupId,                        
+                'product_name'   => $item['name'],
+                'quantity'       => $item['qty'],
+                'total_price'    => (int)$item['price'] * (int)$item['qty'],
+                'status'         => 'pending' 
+            ]);
+        }
+
+        DB::commit();
+        return response()->json(['success' => true]);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+    }
+}
 }

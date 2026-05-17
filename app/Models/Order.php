@@ -1,25 +1,20 @@
 <?php
 
+namespace App\Http\Controllers; //
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Product; // Import model produk
 
 class Order extends Model
 {
-    protected $fillable = ['table_number', 'product_name', 'quantity', 'total_price', 'status'];
+    /**
+     * Jurus Maut: Mematikan proteksi Mass Assignment.
+     * Dengan guarded kosong, semua kolom (termasuk customer_name & order_group_id)
+     * bisa diisi secara otomatis tanpa perlu didaftarkan satu-satu.
+     */
+    protected $guarded = [];
 
-    protected static function booted()
-    {
-        // Fungsi ini jalan otomatis setiap ada pesanan baru tersimpan
-        static::created(function ($order) {
-            // 1. Cari produk berdasarkan nama
-            $product = Product::where('name', $order->product_name)->first();
-            
-            // 2. Kalau produk ketemu, kurangi stoknya
-            if ($product) {
-                $product->decrement('stock', $order->quantity);
-            }
-        });
-    }
+    // REVISI: Fungsi booted() yang memotong stok otomatis dihapus total 
+    // karena urusan potong stok sudah dihandle dengan aman oleh TableController.
 }

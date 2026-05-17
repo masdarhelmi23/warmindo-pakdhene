@@ -6,6 +6,7 @@ use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Category;
+use App\Models\Table;
 
 class ProductController extends Controller
 {
@@ -23,30 +24,30 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validasi data (Tambahkan 'stock' di sini)
+        // 1. Validasi data input pembuatan menu baru
         $request->validate([
-            'name' => 'required',
+            'name'        => 'required',
             'category_id' => 'required',
-            'price' => 'required|numeric',
-            'stock' => 'required|numeric', // Stok wajib diisi angka
-            'image' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'price'       => 'required|numeric',
+            'stock'       => 'required|numeric', // Stok awal menu baru
+            'image'       => 'required|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        // 2. Upload Gambar
+        // 2. Upload Gambar Menu
         $path = $request->file('image')->store('products', 'public');
 
-        // 3. Simpan ke Database
+        // 3. Simpan menu baru ke Database (Tanpa memotong stok apa pun!)
         Product::create([
-            'name' => $request->name,
+            'name'        => $request->name,
             'category_id' => $request->category_id,
-            'price' => $request->price,
-            'stock' => $request->stock, // Pastikan ini ada
+            'price'       => $request->price,
+            'stock'       => $request->stock, 
             'description' => $request->description,
-            'image' => $path,
-            'status' => $request->has('status') ? 1 : 0,
+            'image'       => $path,
+            'status'      => $request->has('status') ? 1 : 0,
         ]);
 
-        return redirect()->route('products.index')->with('success', 'Menu berhasil ditambahkan!');
+        return redirect()->route('products.index')->with('success', 'Menu baru berhasil ditambahkan!');
     }
 
     public function edit(Product $product)
@@ -99,5 +100,21 @@ class ProductController extends Controller
         return redirect()->route('products.index')->with('success', 'Menu berhasil dihapus!');
     }
 
+    public function customerIndex(Request $request) 
+    {
+        // Tangkap token dari URL menu (?t=...)
+        $token = $request->query('t');
+        $table = Table::where('token', $token)->first();
 
+        // Jika token tidak valid, arahkan balik ke awal
+        if (!$table) {
+            return redirect('/')->with('error', 'Silakan scan QR Meja kembali.');
+        }
+
+        $products = Product::all();
+        $categories = Category::all();
+        $tableNumber = $table->number;
+
+        return view('customer.order', compact('products', 'categories', 'table', 'tableNumber'));
+    }
 }
