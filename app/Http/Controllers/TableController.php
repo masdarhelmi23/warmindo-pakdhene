@@ -285,13 +285,15 @@ class TableController extends Controller
      * Memanggil file fisik resources/views/customer/status.blade.php
      */
     public function orderStatus($order_id)
-    {
-        $orders = Order::where('order_group_id', $order_id)->get();
-
-        if ($orders->isEmpty()) {
-            abort(404, 'Kode pesanan tidak ditemukan.');
-        }
-
-        return view('customer.status', compact('orders', 'order_id'));
+{
+    // Mengambil semua pesanan dengan group_id yang sama agar menu terkumpul
+    $orders = \App\Models\Order::where('group_id', $order_id)->get();
+    
+    // Jika data tidak ditemukan
+    if ($orders->isEmpty()) {
+        return redirect('/')->with('error', 'Pesanan tidak ditemukan.');
     }
+
+    return view('customer.status', compact('orders', 'order_id'));
+}
 }
